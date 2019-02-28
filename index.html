@@ -62,7 +62,7 @@
                 pdf="";
                 html2canvas($(".testDiv:eq(1)")[0], { allowTaint: true }).then(function(canvas) {
 
-                    calculatePDF_height_width(".titulo",0);
+                    calculatePDF_height_width(".testDiv",0);
                     var imgData = canvas.toDataURL("image/png", 1.0);
                     pdf = new jsPDF('p', 'pt', [PDF_Width, PDF_Height]);
                     pdf.addImage(imgData, 'JPG', top_left_margin, top_left_margin, HTML_Width, HTML_Height);
@@ -76,7 +76,7 @@
                 });
                 html2canvas($(".testDiv:eq(1)")[0], { allowTaint: true }).then(function(canvas) {
 
-                    calculatePDF_height_width(".imagen",2);
+                    calculatePDF_height_width(".testDiv",2);
                     var imgData = canvas.toDataURL("image/png", 1.0);
                     pdf.addPage(PDF_Width, PDF_Height);
                     pdf.addImage(imgData, 'JPG', top_left_margin, top_left_margin, HTML_Width, HTML_Height);

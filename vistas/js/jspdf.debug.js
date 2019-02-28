@@ -1,12 +1,13 @@
-(function (factory) {
-  typeof define === 'function' && define.amd ? define(factory) :
-  factory();
-}(function () { 'use strict';
+(function (global, factory) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
+  typeof define === 'function' && define.amd ? define(['exports'], factory) :
+  (global = global || self, factory(global.jsPDF = {}));
+}(this, function (exports) { 'use strict';
 
   /** @license
    * jsPDF - PDF Document creation from JavaScript
-   * Version 1.5.3 Built on 2018-12-27T14:11:42.696Z
-   *                      CommitID d93d28db14
+   * Version 1.5.2 Built on 2018-12-20T15:49:00.470Z
+   *                      CommitID 81f5c40ca4
    *
    * Copyright (c) 2010-2016 James Hall <james@parall.ax>, https://github.com/MrRio/jsPDF
    *               2010 Aaron Spike, https://github.com/acspike
@@ -356,6 +357,296 @@
   })(typeof self !== "undefined" && self || typeof window !== "undefined" && window || typeof global !== "undefined" && global || Function('return typeof this === "object" && this.content')() || Function('return this')()); // `self` is undefined in Firefox for Android content script context
   // while `this` is nsIContentFrameMessageManager
   // with an attribute `content` that corresponds to the window
+
+  (function (global, factory) {
+    typeof exports === 'object' && typeof module !== 'undefined' ? factory() : typeof define === 'function' && define.amd ? define(factory) : factory();
+  })(window, function () {
+    /**
+     * @this {Promise}
+     */
+
+    function finallyConstructor(callback) {
+      var constructor = this.constructor;
+      return this.then(function (value) {
+        return constructor.resolve(callback()).then(function () {
+          return value;
+        });
+      }, function (reason) {
+        return constructor.resolve(callback()).then(function () {
+          return constructor.reject(reason);
+        });
+      });
+    } // Store setTimeout reference so promise-polyfill will be unaffected by
+    // other code modifying setTimeout (like sinon.useFakeTimers())
+
+
+    var setTimeoutFunc = setTimeout;
+
+    function noop() {} // Polyfill for Function.prototype.bind
+
+
+    function bind(fn, thisArg) {
+      return function () {
+        fn.apply(thisArg, arguments);
+      };
+    }
+    /**
+     * @constructor
+     * @param {Function} fn
+     */
+
+
+    function Promise(fn) {
+      if (!(this instanceof Promise)) throw new TypeError('Promises must be constructed via new');
+      if (typeof fn !== 'function') throw new TypeError('not a function');
+      /** @type {!number} */
+
+      this._state = 0;
+      /** @type {!boolean} */
+
+      this._handled = false;
+      /** @type {Promise|undefined} */
+
+      this._value = undefined;
+      /** @type {!Array<!Function>} */
+
+      this._deferreds = [];
+      doResolve(fn, this);
+    }
+
+    function handle(self, deferred) {
+      while (self._state === 3) {
+        self = self._value;
+      }
+
+      if (self._state === 0) {
+        self._deferreds.push(deferred);
+
+        return;
+      }
+
+      self._handled = true;
+
+      Promise._immediateFn(function () {
+        var cb = self._state === 1 ? deferred.onFulfilled : deferred.onRejected;
+
+        if (cb === null) {
+          (self._state === 1 ? resolve : reject)(deferred.promise, self._value);
+          return;
+        }
+
+        var ret;
+
+        try {
+          ret = cb(self._value);
+        } catch (e) {
+          reject(deferred.promise, e);
+          return;
+        }
+
+        resolve(deferred.promise, ret);
+      });
+    }
+
+    function resolve(self, newValue) {
+      try {
+        // Promise Resolution Procedure: https://github.com/promises-aplus/promises-spec#the-promise-resolution-procedure
+        if (newValue === self) throw new TypeError('A promise cannot be resolved with itself.');
+
+        if (newValue && (typeof newValue === 'object' || typeof newValue === 'function')) {
+          var then = newValue.then;
+
+          if (newValue instanceof Promise) {
+            self._state = 3;
+            self._value = newValue;
+            finale(self);
+            return;
+          } else if (typeof then === 'function') {
+            doResolve(bind(then, newValue), self);
+            return;
+          }
+        }
+
+        self._state = 1;
+        self._value = newValue;
+        finale(self);
+      } catch (e) {
+        reject(self, e);
+      }
+    }
+
+    function reject(self, newValue) {
+      self._state = 2;
+      self._value = newValue;
+      finale(self);
+    }
+
+    function finale(self) {
+      if (self._state === 2 && self._deferreds.length === 0) {
+        Promise._immediateFn(function () {
+          if (!self._handled) {
+            Promise._unhandledRejectionFn(self._value);
+          }
+        });
+      }
+
+      for (var i = 0, len = self._deferreds.length; i < len; i++) {
+        handle(self, self._deferreds[i]);
+      }
+
+      self._deferreds = null;
+    }
+    /**
+     * @constructor
+     */
+
+
+    function Handler(onFulfilled, onRejected, promise) {
+      this.onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : null;
+      this.onRejected = typeof onRejected === 'function' ? onRejected : null;
+      this.promise = promise;
+    }
+    /**
+     * Take a potentially misbehaving resolver function and make sure
+     * onFulfilled and onRejected are only called once.
+     *
+     * Makes no guarantees about asynchrony.
+     */
+
+
+    function doResolve(fn, self) {
+      var done = false;
+
+      try {
+        fn(function (value) {
+          if (done) return;
+          done = true;
+          resolve(self, value);
+        }, function (reason) {
+          if (done) return;
+          done = true;
+          reject(self, reason);
+        });
+      } catch (ex) {
+        if (done) return;
+        done = true;
+        reject(self, ex);
+      }
+    }
+
+    Promise.prototype['catch'] = function (onRejected) {
+      return this.then(null, onRejected);
+    };
+
+    Promise.prototype.then = function (onFulfilled, onRejected) {
+      // @ts-ignore
+      var prom = new this.constructor(noop);
+      handle(this, new Handler(onFulfilled, onRejected, prom));
+      return prom;
+    };
+
+    Promise.prototype['finally'] = finallyConstructor;
+
+    Promise.all = function (arr) {
+      return new Promise(function (resolve, reject) {
+        if (!arr || typeof arr.length === 'undefined') throw new TypeError('Promise.all accepts an array');
+        var args = Array.prototype.slice.call(arr);
+        if (args.length === 0) return resolve([]);
+        var remaining = args.length;
+
+        function res(i, val) {
+          try {
+            if (val && (typeof val === 'object' || typeof val === 'function')) {
+              var then = val.then;
+
+              if (typeof then === 'function') {
+                then.call(val, function (val) {
+                  res(i, val);
+                }, reject);
+                return;
+              }
+            }
+
+            args[i] = val;
+
+            if (--remaining === 0) {
+              resolve(args);
+            }
+          } catch (ex) {
+            reject(ex);
+          }
+        }
+
+        for (var i = 0; i < args.length; i++) {
+          res(i, args[i]);
+        }
+      });
+    };
+
+    Promise.resolve = function (value) {
+      if (value && typeof value === 'object' && value.constructor === Promise) {
+        return value;
+      }
+
+      return new Promise(function (resolve) {
+        resolve(value);
+      });
+    };
+
+    Promise.reject = function (value) {
+      return new Promise(function (resolve, reject) {
+        reject(value);
+      });
+    };
+
+    Promise.race = function (values) {
+      return new Promise(function (resolve, reject) {
+        for (var i = 0, len = values.length; i < len; i++) {
+          values[i].then(resolve, reject);
+        }
+      });
+    }; // Use polyfill for setImmediate for performance gains
+
+
+    Promise._immediateFn = typeof setImmediate === 'function' && function (fn) {
+      setImmediate(fn);
+    } || function (fn) {
+      setTimeoutFunc(fn, 0);
+    };
+
+    Promise._unhandledRejectionFn = function _unhandledRejectionFn(err) {
+      if (typeof console !== 'undefined' && console) {
+        console.warn('Possible Unhandled Promise Rejection:', err); // eslint-disable-line no-console
+      }
+    };
+    /** @suppress {undefinedVars} */
+
+
+    var globalNS = function () {
+      // the only reliable means to get the global object is
+      // `Function('return this')()`
+      // However, this causes CSP violations in Chrome apps.
+      if (typeof self !== 'undefined') {
+        return self;
+      }
+
+      if (typeof window !== 'undefined') {
+        return window;
+      }
+
+      if (typeof global !== 'undefined') {
+        return global;
+      }
+
+      throw new Error('unable to locate global object');
+    }();
+
+    if (!('Promise' in globalNS)) {
+      globalNS['Promise'] = Promise;
+    } else if (!globalNS.Promise.prototype['finally']) {
+      globalNS.Promise.prototype['finally'] = finallyConstructor;
+    }
+  });
 
   /**
    * Creates new jsPDF document object instance.
@@ -1220,7 +1511,7 @@
         out('<</Type /Page');
         out('/Parent ' + page.rootDictionaryObjId + ' 0 R');
         out('/Resources ' + page.resourceDictionaryObjId + ' 0 R');
-        out('/MediaBox [' + parseFloat(f2(page.mediaBox.bottomLeftX)) + ' ' + parseFloat(f2(page.mediaBox.bottomLeftY)) + ' ' + f2(page.mediaBox.topRightX) + ' ' + f2(page.mediaBox.topRightY) + ']');
+        out('/MediaBox [' + parseFloat(f2(page.mediaBox.bottomLeftX)) + ' ' + parseFloat(f2(page.mediaBox.bottomLeftY)) + ' ' + f2(pagesContext[currentPage].mediaBox.topRightX) + ' ' + f2(pagesContext[currentPage].mediaBox.topRightY) + ']');
 
         if (page.cropBox !== null) {
           out('/CropBox [' + f2(page.cropBox.bottomLeftX) + ' ' + f2(page.cropBox.bottomLeftY) + ' ' + f2(page.cropBox.topRightX) + ' ' + f2(page.cropBox.topRightY) + ']');
@@ -1618,9 +1909,9 @@
         var orientation = typeof height === 'string' && height.toLowerCase();
 
         if (typeof width === 'string') {
-          if (tmp = getPageFormat(width.toLowerCase())) {
-            width = tmp[0];
-            height = tmp[1];
+          if (getPageFormat(width.toLowerCase())) {
+            width = getPageFormat(width.toLowerCase())[0];
+            height = getPageFormat(width.toLowerCase())[1];
           }
         }
 
@@ -1971,14 +2262,8 @@
 
           case 'bloburi':
           case 'bloburl':
-            // Developer is responsible of calling revokeObjectURL
-            if (typeof global.URL !== "undefined" && typeof global.URL.createObjectURL === "function") {
-              return global.URL && global.URL.createObjectURL(getBlob(pdfDocument)) || void 0;
-            } else {
-              console.warn('bloburl is not supported by your system, because URL.createObjectURL is not supported by your browser.');
-            }
-
-            break;
+            // User is responsible of calling revokeObjectURL
+            return global.URL && global.URL.createObjectURL(getBlob(pdfDocument)) || void 0;
 
           case 'datauristring':
           case 'dataurlstring':
@@ -3833,7 +4118,7 @@
      * @memberOf jsPDF
      */
 
-    jsPDF.version = '1.5.3';
+    jsPDF.version = '1.5.2';
 
     if (typeof define === 'function' && define.amd) {
       define('jsPDF', function () {
@@ -8948,7 +9233,7 @@
 
           for (var i = 0; i < txt.length; i++) {
             var currentLine = txt[i];
-            var textSize = this.getStringUnitWidth(currentLine) * this.internal.getFontSize() / this.internal.scaleFactor;
+            var textSize = this.getStringUnitWidth(currentLine) * this.internal.getFontSize();
             this.text(currentLine, x + w - textSize - padding, y + this.internal.getLineHeight() * (i + 1));
           }
         } else {
@@ -10213,6 +10498,8 @@
         style = style.getColor();
       }
 
+      var rgbColor = new RGBColor(style);
+
       if (!style) {
         return {
           r: 0,
@@ -10247,9 +10534,7 @@
           } else {
             a = 1;
 
-            if (typeof style === "string" && style.charAt(0) !== '#') {
-              var rgbColor = new RGBColor(style);
-
+            if (style.charAt(0) !== '#') {
               if (rgbColor.ok) {
                 style = rgbColor.toHex();
               } else {
@@ -14527,13 +14812,7 @@
       var instance = data.instance;
 
       if (typeof instance !== "undefined" && instance.existsFileInVFS(font.postScriptName)) {
-        var file = instance.getFileFromVFS(font.postScriptName);
-
-        if (typeof file !== "string") {
-          throw new Error("Font is not stored as string-data in vFS, import fonts or remove declaration doc.addFont('" + font.postScriptName + "').");
-        }
-
-        font.metadata = jsPDF.API.TTFFont.open(font.postScriptName, font.fontName, file, font.encoding);
+        font.metadata = jsPDF.API.TTFFont.open(font.postScriptName, font.fontName, instance.getFileFromVFS(font.postScriptName), font.encoding);
         font.metadata.Unicode = font.metadata.Unicode || {
           encoding: {},
           kerning: {},
@@ -14541,7 +14820,7 @@
         };
         font.metadata.glyIdsUsed = [0];
       } else if (font.isStandardFont === false) {
-        throw new Error("Font does not exist in vFS, import fonts or remove declaration doc.addFont('" + font.postScriptName + "').");
+        throw new Error("Font does not exist in FileInVFS, import fonts or remove declaration doc.addFont('" + font.postScriptName + "').");
       }
     }]); // end of adding event handler
   })(jsPDF, typeof self !== "undefined" && self || typeof global !== "undefined" && global || typeof window !== "undefined" && window || Function("return this")());
@@ -16692,6 +16971,7 @@
     Renderer.prototype.getPdfColor = function (style) {
       var textColor;
       var r, g, b;
+      var rgbColor = new RGBColor(style);
       var rx = /rgb\s*\(\s*(\d+),\s*(\d+),\s*(\d+\s*)\)/;
       var m = rx.exec(style);
 
@@ -16700,9 +16980,7 @@
         g = parseInt(m[2]);
         b = parseInt(m[3]);
       } else {
-        if (typeof style === "string" && style.charAt(0) != '#') {
-          var rgbColor = new RGBColor(style);
-
+        if (style.charAt(0) != '#') {
           if (rgbColor.ok) {
             style = rgbColor.toHex();
           } else {
@@ -17082,628 +17360,409 @@
   /*rollup-keeper-end*/
 
   /* Blob.js
-   * A Blob, File, FileReader & URL implementation.
-   * 2018-08-09
+   * A Blob implementation.
+   * 2014-07-24
    *
    * By Eli Grey, http://eligrey.com
-   * By Jimmy Wärting, https://github.com/jimmywarting
-   * License: MIT
+   * By Devin Samarin, https://github.com/dsamarin
+   * License: X11/MIT
    *   See https://github.com/eligrey/Blob.js/blob/master/LICENSE.md
    */
 
-  (function (global) {
-    var BlobBuilder = global.BlobBuilder || global.WebKitBlobBuilder || global.MSBlobBuilder || global.MozBlobBuilder;
+  /*global self, unescape */
 
-    global.URL = global.URL || global.webkitURL || function (href, a) {
-      a = document.createElement('a');
-      a.href = href;
-      return a;
-    };
+  /*jslint bitwise: true, regexp: true, confusion: true, es5: true, vars: true, white: true,
+    plusplus: true */
 
-    var origBlob = global.Blob;
-    var createObjectURL = URL.createObjectURL;
-    var revokeObjectURL = URL.revokeObjectURL;
-    var strTag = global.Symbol && global.Symbol.toStringTag;
-    var blobSupported = false;
-    var blobSupportsArrayBufferView = false;
-    var arrayBufferSupported = !!global.ArrayBuffer;
-    var blobBuilderSupported = BlobBuilder && BlobBuilder.prototype.append && BlobBuilder.prototype.getBlob;
+  /*! @source http://purl.eligrey.com/github/Blob.js/blob/master/Blob.js */
+  (function (view) {
 
-    try {
-      // Check if Blob constructor is supported
-      blobSupported = new Blob(['ä']).size === 2; // Check if Blob constructor supports ArrayBufferViews
-      // Fails in Safari 6, so we need to map to ArrayBuffers there.
+    view.URL = view.URL || view.webkitURL;
 
-      blobSupportsArrayBufferView = new Blob([new Uint8Array([1, 2])]).size === 2;
-    } catch (e) {}
-    /**
-     * Helper function that maps ArrayBufferViews to ArrayBuffers
-     * Used by BlobBuilder constructor and old browsers that didn't
-     * support it in the Blob constructor.
-     */
+    if (view.Blob && view.URL) {
+      try {
+        new Blob();
+        return;
+      } catch (e) {}
+    } // Internally we use a BlobBuilder implementation to base Blob off of
+    // in order to support older browsers that only have BlobBuilder
 
 
-    function mapArrayBufferViews(ary) {
-      return ary.map(function (chunk) {
-        if (chunk.buffer instanceof ArrayBuffer) {
-          var buf = chunk.buffer; // if this is a subarray, make a copy so we only
-          // include the subarray region from the underlying buffer
+    var BlobBuilder = view.BlobBuilder || view.WebKitBlobBuilder || view.MozBlobBuilder || function (view) {
+      var get_class = function (object) {
+        return Object.prototype.toString.call(object).match(/^\[object\s(.*)\]$/)[1];
+      },
+          FakeBlobBuilder = function BlobBuilder() {
+        this.data = [];
+      },
+          FakeBlob = function Blob(data, type, encoding) {
+        this.data = data;
+        this.size = data.length;
+        this.type = type;
+        this.encoding = encoding;
+      },
+          FBB_proto = FakeBlobBuilder.prototype,
+          FB_proto = FakeBlob.prototype,
+          FileReaderSync = view.FileReaderSync,
+          FileException = function (type) {
+        this.code = this[this.name = type];
+      },
+          file_ex_codes = ("NOT_FOUND_ERR SECURITY_ERR ABORT_ERR NOT_READABLE_ERR ENCODING_ERR " + "NO_MODIFICATION_ALLOWED_ERR INVALID_STATE_ERR SYNTAX_ERR").split(" "),
+          file_ex_code = file_ex_codes.length,
+          real_URL = view.URL || view.webkitURL || view,
+          real_create_object_URL = real_URL.createObjectURL,
+          real_revoke_object_URL = real_URL.revokeObjectURL,
+          URL = real_URL,
+          btoa = view.btoa,
+          atob = view.atob,
+          ArrayBuffer = view.ArrayBuffer,
+          Uint8Array = view.Uint8Array,
+          origin = /^[\w-]+:\/*\[?[\w\.:-]+\]?(?::[0-9]+)?/;
 
-          if (chunk.byteLength !== buf.byteLength) {
-            var copy = new Uint8Array(chunk.byteLength);
-            copy.set(new Uint8Array(buf, chunk.byteOffset, chunk.byteLength));
-            buf = copy.buffer;
-          }
+      FakeBlob.fake = FB_proto.fake = true;
 
-          return buf;
-        }
+      while (file_ex_code--) {
+        FileException.prototype[file_ex_codes[file_ex_code]] = file_ex_code + 1;
+      } // Polyfill URL
 
-        return chunk;
-      });
-    }
 
-    function BlobBuilderConstructor(ary, options) {
-      options = options || {};
-      var bb = new BlobBuilder();
-      mapArrayBufferViews(ary).forEach(function (part) {
-        bb.append(part);
-      });
-      return options.type ? bb.getBlob(options.type) : bb.getBlob();
-    }
+      if (!real_URL.createObjectURL) {
+        URL = view.URL = function (uri) {
+          var uri_info = document.createElementNS("http://www.w3.org/1999/xhtml", "a"),
+              uri_origin;
+          uri_info.href = uri;
 
-    function BlobConstructor(ary, options) {
-      return new origBlob(mapArrayBufferViews(ary), options || {});
-    }
-
-    if (global.Blob) {
-      BlobBuilderConstructor.prototype = Blob.prototype;
-      BlobConstructor.prototype = Blob.prototype;
-    }
-
-    function FakeBlobBuilder() {
-      function toUTF8Array(str) {
-        var utf8 = [];
-
-        for (var i = 0; i < str.length; i++) {
-          var charcode = str.charCodeAt(i);
-          if (charcode < 0x80) utf8.push(charcode);else if (charcode < 0x800) {
-            utf8.push(0xc0 | charcode >> 6, 0x80 | charcode & 0x3f);
-          } else if (charcode < 0xd800 || charcode >= 0xe000) {
-            utf8.push(0xe0 | charcode >> 12, 0x80 | charcode >> 6 & 0x3f, 0x80 | charcode & 0x3f);
-          } // surrogate pair
-          else {
-              i++; // UTF-16 encodes 0x10000-0x10FFFF by
-              // subtracting 0x10000 and splitting the
-              // 20 bits of 0x0-0xFFFFF into two halves
-
-              charcode = 0x10000 + ((charcode & 0x3ff) << 10 | str.charCodeAt(i) & 0x3ff);
-              utf8.push(0xf0 | charcode >> 18, 0x80 | charcode >> 12 & 0x3f, 0x80 | charcode >> 6 & 0x3f, 0x80 | charcode & 0x3f);
-            }
-        }
-
-        return utf8;
-      }
-
-      function fromUtf8Array(array) {
-        var out, i, len, c;
-        var char2, char3;
-        out = "";
-        len = array.length;
-        i = 0;
-
-        while (i < len) {
-          c = array[i++];
-
-          switch (c >> 4) {
-            case 0:
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-            case 5:
-            case 6:
-            case 7:
-              // 0xxxxxxx
-              out += String.fromCharCode(c);
-              break;
-
-            case 12:
-            case 13:
-              // 110x xxxx   10xx xxxx
-              char2 = array[i++];
-              out += String.fromCharCode((c & 0x1F) << 6 | char2 & 0x3F);
-              break;
-
-            case 14:
-              // 1110 xxxx  10xx xxxx  10xx xxxx
-              char2 = array[i++];
-              char3 = array[i++];
-              out += String.fromCharCode((c & 0x0F) << 12 | (char2 & 0x3F) << 6 | (char3 & 0x3F) << 0);
-              break;
-          }
-        }
-
-        return out;
-      }
-
-      function isDataView(obj) {
-        return obj && DataView.prototype.isPrototypeOf(obj);
-      }
-
-      function bufferClone(buf) {
-        var view = new Array(buf.byteLength);
-        var array = new Uint8Array(buf);
-        var i = view.length;
-
-        while (i--) {
-          view[i] = array[i];
-        }
-
-        return view;
-      }
-
-      function encodeByteArray(input) {
-        var byteToCharMap = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        var output = [];
-
-        for (var i = 0; i < input.length; i += 3) {
-          var byte1 = input[i];
-          var haveByte2 = i + 1 < input.length;
-          var byte2 = haveByte2 ? input[i + 1] : 0;
-          var haveByte3 = i + 2 < input.length;
-          var byte3 = haveByte3 ? input[i + 2] : 0;
-          var outByte1 = byte1 >> 2;
-          var outByte2 = (byte1 & 0x03) << 4 | byte2 >> 4;
-          var outByte3 = (byte2 & 0x0F) << 2 | byte3 >> 6;
-          var outByte4 = byte3 & 0x3F;
-
-          if (!haveByte3) {
-            outByte4 = 64;
-
-            if (!haveByte2) {
-              outByte3 = 64;
+          if (!("origin" in uri_info)) {
+            if (uri_info.protocol.toLowerCase() === "data:") {
+              uri_info.origin = null;
+            } else {
+              uri_origin = uri.match(origin);
+              uri_info.origin = uri_origin && uri_origin[1];
             }
           }
 
-          output.push(byteToCharMap[outByte1], byteToCharMap[outByte2], byteToCharMap[outByte3], byteToCharMap[outByte4]);
-        }
-
-        return output.join('');
-      }
-
-      var create = Object.create || function (a) {
-        function c() {}
-
-        c.prototype = a;
-        return new c();
-      };
-
-      if (arrayBufferSupported) {
-        var viewClasses = ['[object Int8Array]', '[object Uint8Array]', '[object Uint8ClampedArray]', '[object Int16Array]', '[object Uint16Array]', '[object Int32Array]', '[object Uint32Array]', '[object Float32Array]', '[object Float64Array]'];
-
-        var isArrayBufferView = ArrayBuffer.isView || function (obj) {
-          return obj && viewClasses.indexOf(Object.prototype.toString.call(obj)) > -1;
+          return uri_info;
         };
       }
-      /********************************************************/
-
-      /*                   Blob constructor                   */
-
-      /********************************************************/
-
-
-      function Blob(chunks, opts) {
-        chunks = chunks || [];
-
-        for (var i = 0, len = chunks.length; i < len; i++) {
-          var chunk = chunks[i];
-
-          if (chunk instanceof Blob) {
-            chunks[i] = chunk._buffer;
-          } else if (typeof chunk === 'string') {
-            chunks[i] = toUTF8Array(chunk);
-          } else if (arrayBufferSupported && (ArrayBuffer.prototype.isPrototypeOf(chunk) || isArrayBufferView(chunk))) {
-            chunks[i] = bufferClone(chunk);
-          } else if (arrayBufferSupported && isDataView(chunk)) {
-            chunks[i] = bufferClone(chunk.buffer);
-          } else {
-            chunks[i] = toUTF8Array(String(chunk));
-          }
-        }
-
-        this._buffer = [].concat.apply([], chunks);
-        this.size = this._buffer.length;
-        this.type = opts ? opts.type || '' : '';
-      }
-
-      Blob.prototype.slice = function (start, end, type) {
-        var slice = this._buffer.slice(start || 0, end || this._buffer.length);
-
-        return new Blob([slice], {
-          type: type
-        });
-      };
-
-      Blob.prototype.toString = function () {
-        return '[object Blob]';
-      };
-      /********************************************************/
-
-      /*                   File constructor                   */
-
-      /********************************************************/
-
-
-      function File(chunks, name, opts) {
-        opts = opts || {};
-        var a = Blob.call(this, chunks, opts) || this;
-        a.name = name;
-        a.lastModifiedDate = opts.lastModified ? new Date(opts.lastModified) : new Date();
-        a.lastModified = +a.lastModifiedDate;
-        return a;
-      }
-
-      File.prototype = create(Blob.prototype);
-      File.prototype.constructor = File;
-      if (Object.setPrototypeOf) Object.setPrototypeOf(File, Blob);else {
-        try {
-          File.__proto__ = Blob;
-        } catch (e) {}
-      }
-
-      File.prototype.toString = function () {
-        return '[object File]';
-      };
-      /********************************************************/
-
-      /*                FileReader constructor                */
-
-      /********************************************************/
-
-
-      function FileReader() {
-        if (!(this instanceof FileReader)) throw new TypeError("Failed to construct 'FileReader': Please use the 'new' operator, this DOM object constructor cannot be called as a function.");
-        var delegate = document.createDocumentFragment();
-        this.addEventListener = delegate.addEventListener;
-
-        this.dispatchEvent = function (evt) {
-          var local = this['on' + evt.type];
-          if (typeof local === 'function') local(evt);
-          delegate.dispatchEvent(evt);
-        };
-
-        this.removeEventListener = delegate.removeEventListener;
-      }
-
-      function _read(fr, blob, kind) {
-        if (!(blob instanceof Blob)) throw new TypeError("Failed to execute '" + kind + "' on 'FileReader': parameter 1 is not of type 'Blob'.");
-        fr.result = '';
-        setTimeout(function () {
-          this.readyState = FileReader.LOADING;
-          fr.dispatchEvent(new Event('load'));
-          fr.dispatchEvent(new Event('loadend'));
-        });
-      }
-
-      FileReader.EMPTY = 0;
-      FileReader.LOADING = 1;
-      FileReader.DONE = 2;
-      FileReader.prototype.error = null;
-      FileReader.prototype.onabort = null;
-      FileReader.prototype.onerror = null;
-      FileReader.prototype.onload = null;
-      FileReader.prototype.onloadend = null;
-      FileReader.prototype.onloadstart = null;
-      FileReader.prototype.onprogress = null;
-
-      FileReader.prototype.readAsDataURL = function (blob) {
-        _read(this, blob, 'readAsDataURL');
-
-        this.result = 'data:' + blob.type + ';base64,' + encodeByteArray(blob._buffer);
-      };
-
-      FileReader.prototype.readAsText = function (blob) {
-        _read(this, blob, 'readAsText');
-
-        this.result = fromUtf8Array(blob._buffer);
-      };
-
-      FileReader.prototype.readAsArrayBuffer = function (blob) {
-        _read(this, blob, 'readAsText');
-
-        this.result = blob._buffer.slice();
-      };
-
-      FileReader.prototype.abort = function () {};
-      /********************************************************/
-
-      /*                         URL                          */
-
-      /********************************************************/
-
 
       URL.createObjectURL = function (blob) {
-        return blob instanceof Blob ? 'data:' + blob.type + ';base64,' + encodeByteArray(blob._buffer) : createObjectURL.call(URL, blob);
-      };
+        var type = blob.type,
+            data_URI_header;
 
-      URL.revokeObjectURL = function (url) {
-        revokeObjectURL && revokeObjectURL.call(URL, url);
-      };
-      /********************************************************/
-
-      /*                         XHR                          */
-
-      /********************************************************/
-
-
-      var _send = global.XMLHttpRequest && global.XMLHttpRequest.prototype.send;
-
-      if (_send) {
-        XMLHttpRequest.prototype.send = function (data) {
-          if (data instanceof Blob) {
-            this.setRequestHeader('Content-Type', data.type);
-
-            _send.call(this, fromUtf8Array(data._buffer));
-          } else {
-            _send.call(this, data);
-          }
-        };
-      }
-
-      global.FileReader = FileReader;
-      global.File = File;
-      global.Blob = Blob;
-    }
-
-    if (strTag) {
-      try {
-        File.prototype[strTag] = 'File';
-        Blob.prototype[strTag] = 'Blob';
-        FileReader.prototype[strTag] = 'FileReader';
-      } catch (e) {}
-    }
-
-    function fixFileAndXHR() {
-      var isIE = !!global.ActiveXObject || '-ms-scroll-limit' in document.documentElement.style && '-ms-ime-align' in document.documentElement.style; // Monkey patched 
-      // IE don't set Content-Type header on XHR whose body is a typed Blob
-      // https://developer.microsoft.com/en-us/microsoft-edge/platform/issues/6047383
-
-      var _send = global.XMLHttpRequest && global.XMLHttpRequest.prototype.send;
-
-      if (isIE && _send) {
-        XMLHttpRequest.prototype.send = function (data) {
-          if (data instanceof Blob) {
-            this.setRequestHeader('Content-Type', data.type);
-
-            _send.call(this, data);
-          } else {
-            _send.call(this, data);
-          }
-        };
-      }
-
-      try {
-        new File([], '');
-      } catch (e) {
-        try {
-          var klass = new Function('class File extends Blob {' + 'constructor(chunks, name, opts) {' + 'opts = opts || {};' + 'super(chunks, opts || {});' + 'this.name = name;' + 'this.lastModifiedDate = opts.lastModified ? new Date(opts.lastModified) : new Date;' + 'this.lastModified = +this.lastModifiedDate;' + '}};' + 'return new File([], ""), File')();
-          global.File = klass;
-        } catch (e) {
-          var klass = function klass(b, d, c) {
-            var blob = new Blob(b, c);
-            var t = c && void 0 !== c.lastModified ? new Date(c.lastModified) : new Date();
-            blob.name = d;
-            blob.lastModifiedDate = t;
-            blob.lastModified = +t;
-
-            blob.toString = function () {
-              return '[object File]';
-            };
-
-            if (strTag) blob[strTag] = 'File';
-            return blob;
-          };
-
-          global.File = klass;
+        if (type === null) {
+          type = "application/octet-stream";
         }
-      }
-    }
 
-    if (blobSupported) {
-      fixFileAndXHR();
-      global.Blob = blobSupportsArrayBufferView ? global.Blob : BlobConstructor;
-    } else if (blobBuilderSupported) {
-      fixFileAndXHR();
-      global.Blob = BlobBuilderConstructor;
-    } else {
-      FakeBlobBuilder();
-    }
-  })(typeof self !== "undefined" && self || typeof window !== "undefined" && window || typeof global !== "undefined" && global || Function('return typeof this === "object" && this.content')() || Function('return this')());
+        if (blob instanceof FakeBlob) {
+          data_URI_header = "data:" + type;
 
-  /* FileSaver.js
-   * A saveAs() FileSaver implementation.
-   * 1.3.8
-   * 2018-03-22 14:03:47
-   *
-   * By Eli Grey, https://eligrey.com
-   * License: MIT
-   *   See https://github.com/eligrey/FileSaver.js/blob/master/LICENSE.md
-   */
+          if (blob.encoding === "base64") {
+            return data_URI_header + ";base64," + blob.data;
+          } else if (blob.encoding === "URI") {
+            return data_URI_header + "," + decodeURIComponent(blob.data);
+          }
 
-  /*global self */
+          if (btoa) {
+            return data_URI_header + ";base64," + btoa(blob.data);
+          } else {
+            return data_URI_header + "," + encodeURIComponent(blob.data);
+          }
+        } else if (real_create_object_URL) {
+          return real_create_object_URL.call(real_URL, blob);
+        }
+      };
 
-  /*jslint bitwise: true, indent: 4, laxbreak: true, laxcomma: true, smarttabs: true, plusplus: true */
+      URL.revokeObjectURL = function (object_URL) {
+        if (object_URL.substring(0, 5) !== "data:" && real_revoke_object_URL) {
+          real_revoke_object_URL.call(real_URL, object_URL);
+        }
+      };
 
-  /*! @source http://purl.eligrey.com/github/FileSaver.js/blob/master/src/FileSaver.js */
-  var saveAs = saveAs || function (view) {
+      FBB_proto.append = function (data
+      /*, endings*/
+      ) {
+        var bb = this.data; // decode data to a binary string
 
-    if (typeof view === "undefined" || typeof navigator !== "undefined" && /MSIE [1-9]\./.test(navigator.userAgent)) {
-      return;
-    }
+        if (Uint8Array && (data instanceof ArrayBuffer || data instanceof Uint8Array)) {
+          var str = "",
+              buf = new Uint8Array(data),
+              i = 0,
+              buf_len = buf.length;
 
-    var doc = view.document // only get URL when necessary in case Blob.js hasn't overridden it yet
-    ,
-        get_URL = function () {
-      return view.URL || view.webkitURL || view;
-    },
-        save_link = doc.createElementNS("http://www.w3.org/1999/xhtml", "a"),
-        can_use_save_link = "download" in save_link,
-        click = function (node) {
-      var event = new MouseEvent("click");
-      node.dispatchEvent(event);
-    },
-        is_safari = /constructor/i.test(view.HTMLElement) || view.safari,
-        is_chrome_ios = /CriOS\/[\d]+/.test(navigator.userAgent),
-        setImmediate = view.setImmediate || view.setTimeout,
-        throw_outside = function (ex) {
-      setImmediate(function () {
-        throw ex;
-      }, 0);
-    },
-        force_saveable_type = "application/octet-stream" // the Blob API is fundamentally broken as there is no "downloadfinished" event to subscribe to
-    ,
-        arbitrary_revoke_timeout = 1000 * 40 // in ms
-    ,
-        revoke = function (file) {
-      var revoker = function () {
-        if (typeof file === "string") {
-          // file is an object URL
-          get_URL().revokeObjectURL(file);
+          for (; i < buf_len; i++) {
+            str += String.fromCharCode(buf[i]);
+          }
+
+          bb.push(str);
+        } else if (get_class(data) === "Blob" || get_class(data) === "File") {
+          if (FileReaderSync) {
+            var fr = new FileReaderSync();
+            bb.push(fr.readAsBinaryString(data));
+          } else {
+            // async FileReader won't work as BlobBuilder is sync
+            throw new FileException("NOT_READABLE_ERR");
+          }
+        } else if (data instanceof FakeBlob) {
+          if (data.encoding === "base64" && atob) {
+            bb.push(atob(data.data));
+          } else if (data.encoding === "URI") {
+            bb.push(decodeURIComponent(data.data));
+          } else if (data.encoding === "raw") {
+            bb.push(data.data);
+          }
         } else {
-          // file is a File
-          file.remove();
+          if (typeof data !== "string") {
+            data += ""; // convert unsupported types to strings
+          } // decode UTF-16 to binary string
+
+
+          bb.push(unescape(encodeURIComponent(data)));
         }
       };
 
-      setTimeout(revoker, arbitrary_revoke_timeout);
-    },
-        dispatch = function (filesaver, event_types, event) {
-      event_types = [].concat(event_types);
-      var i = event_types.length;
+      FBB_proto.getBlob = function (type) {
+        if (!arguments.length) {
+          type = null;
+        }
 
-      while (i--) {
-        var listener = filesaver["on" + event_types[i]];
+        return new FakeBlob(this.data.join(""), type, "raw");
+      };
 
-        if (typeof listener === "function") {
-          try {
-            listener.call(filesaver, event || filesaver);
-          } catch (ex) {
-            throw_outside(ex);
+      FBB_proto.toString = function () {
+        return "[object BlobBuilder]";
+      };
+
+      FB_proto.slice = function (start, end, type) {
+        var args = arguments.length;
+
+        if (args < 3) {
+          type = null;
+        }
+
+        return new FakeBlob(this.data.slice(start, args > 1 ? end : this.data.length), type, this.encoding);
+      };
+
+      FB_proto.toString = function () {
+        return "[object Blob]";
+      };
+
+      FB_proto.close = function () {
+        this.size = 0;
+        delete this.data;
+      };
+
+      return FakeBlobBuilder;
+    }(view);
+
+    view.Blob = function (blobParts, options) {
+      var type = options ? options.type || "" : "";
+      var builder = new BlobBuilder();
+
+      if (blobParts) {
+        for (var i = 0, len = blobParts.length; i < len; i++) {
+          if (Uint8Array && blobParts[i] instanceof Uint8Array) {
+            builder.append(blobParts[i].buffer);
+          } else {
+            builder.append(blobParts[i]);
           }
         }
       }
-    },
-        auto_bom = function (blob) {
-      // prepend BOM for UTF-8 XML and text/* types (including HTML)
+
+      var blob = builder.getBlob(type);
+
+      if (!blob.slice && blob.webkitSlice) {
+        blob.slice = blob.webkitSlice;
+      }
+
+      return blob;
+    };
+
+    var getPrototypeOf = Object.getPrototypeOf || function (object) {
+      return object.__proto__;
+    };
+
+    view.Blob.prototype = getPrototypeOf(new view.Blob());
+  })(typeof self !== "undefined" && self || typeof window !== "undefined" && window || window.content || window);
+
+  (function (global, factory) {
+    if (typeof define === "function" && define.amd) {
+      define([], factory);
+    } else if (typeof exports !== "undefined") {
+      factory();
+    } else {
+      var mod = {
+        exports: {}
+      };
+      factory();
+      global.FileSaver = mod.exports;
+    }
+  })(window, function () {
+    /*
+    * FileSaver.js
+    * A saveAs() FileSaver implementation.
+    *
+    * By Eli Grey, http://eligrey.com
+    *
+    * License : https://github.com/eligrey/FileSaver.js/blob/master/LICENSE.md (MIT)
+    * source  : http://purl.eligrey.com/github/FileSaver.js
+    */
+    // The one and only way of getting global scope in all environments
+    // https://stackoverflow.com/q/3277182/1008999
+
+    var _global = typeof window === 'object' && window.window === window ? window : typeof self === 'object' && self.self === self ? self : typeof global === 'object' && global.global === global ? global : void 0;
+
+    function bom(blob, opts) {
+      if (typeof opts === 'undefined') opts = {
+        autoBom: false
+      };else if (typeof opts !== 'object') {
+        console.warn('Depricated: Expected third argument to be a object');
+        opts = {
+          autoBom: !opts
+        };
+      } // prepend BOM for UTF-8 XML and text/* types (including HTML)
       // note: your browser will automatically convert UTF-16 U+FEFF to EF BB BF
-      if (/^\s*(?:text\/\S*|application\/xml|\S*\/\S*\+xml)\s*;.*charset\s*=\s*utf-8/i.test(blob.type)) {
+
+      if (opts.autoBom && /^\s*(?:text\/\S*|application\/xml|\S*\/\S*\+xml)\s*;.*charset\s*=\s*utf-8/i.test(blob.type)) {
         return new Blob([String.fromCharCode(0xFEFF), blob], {
           type: blob.type
         });
       }
 
       return blob;
-    },
-        FileSaver = function (blob, name, no_auto_bom) {
-      if (!no_auto_bom) {
-        blob = auto_bom(blob);
-      } // First try a.download, then web filesystem, then object URLs
+    }
 
+    function download(url, name, opts) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', url);
+      xhr.responseType = 'blob';
 
-      var filesaver = this,
-          type = blob.type,
-          force = type === force_saveable_type,
-          object_url,
-          dispatch_all = function () {
-        dispatch(filesaver, "writestart progress write writeend".split(" "));
-      } // on any filesys errors revert to saving with object URLs
-      ,
-          fs_error = function () {
-        if ((is_chrome_ios || force && is_safari) && view.FileReader) {
-          // Safari doesn't allow downloading of blob urls
-          var reader = new FileReader();
-
-          reader.onloadend = function () {
-            var url = is_chrome_ios ? reader.result : reader.result.replace(/^data:[^;]*;/, 'data:attachment/file;');
-            var popup = view.open(url, '_blank');
-            if (!popup) view.location.href = url;
-            url = undefined; // release reference before dispatching
-
-            filesaver.readyState = filesaver.DONE;
-            dispatch_all();
-          };
-
-          reader.readAsDataURL(blob);
-          filesaver.readyState = filesaver.INIT;
-          return;
-        } // don't create more object URLs than needed
-
-
-        if (!object_url) {
-          object_url = get_URL().createObjectURL(blob);
-        }
-
-        if (force) {
-          view.location.href = object_url;
-        } else {
-          var opened = view.open(object_url, "_blank");
-
-          if (!opened) {
-            // Apple does not allow window.open, see https://developer.apple.com/library/safari/documentation/Tools/Conceptual/SafariExtensionGuide/WorkingwithWindowsandTabs/WorkingwithWindowsandTabs.html
-            view.location.href = object_url;
-          }
-        }
-
-        filesaver.readyState = filesaver.DONE;
-        dispatch_all();
-        revoke(object_url);
+      xhr.onload = function () {
+        saveAs(xhr.response, name, opts);
       };
 
-      filesaver.readyState = filesaver.INIT;
+      xhr.onerror = function () {
+        console.error('could not download file');
+      };
 
-      if (can_use_save_link) {
-        object_url = get_URL().createObjectURL(blob);
-        setImmediate(function () {
-          save_link.href = object_url;
-          save_link.download = name;
-          click(save_link);
-          dispatch_all();
-          revoke(object_url);
-          filesaver.readyState = filesaver.DONE;
+      xhr.send();
+    }
+
+    function corsEnabled(url) {
+      var xhr = new XMLHttpRequest(); // use sync to avoid popup blocker
+
+      xhr.open('HEAD', url, false);
+      xhr.send();
+      return xhr.status >= 200 && xhr.status <= 299;
+    } // `a.click()` doesn't work for all browsers (#465)
+
+
+    function click(node) {
+      try {
+        node.dispatchEvent(new MouseEvent('click'));
+      } catch (e) {
+        var evt = document.createEvent('MouseEvents');
+        evt.initMouseEvent('click', true, true, window, 0, 0, 0, 80, 20, false, false, false, false, 0, null);
+        node.dispatchEvent(evt);
+      }
+    }
+
+    var saveAs = _global.saveAs || // probably in some web worker
+    typeof window !== 'object' || window !== _global ? function saveAs() {}
+    /* noop */
+    // Use download attribute first if possible (#193 Lumia mobile)
+    : 'download' in HTMLAnchorElement.prototype ? function saveAs(blob, name, opts) {
+      var URL = _global.URL || _global.webkitURL;
+      var a = document.createElement('a');
+      name = name || blob.name || 'download';
+      a.download = name;
+      a.rel = 'noopener'; // tabnabbing
+      // TODO: detect chrome extensions & packaged apps
+      // a.target = '_blank'
+
+      if (typeof blob === 'string') {
+        // Support regular links
+        a.href = blob;
+
+        if (a.origin !== location.origin) {
+          corsEnabled(a.href) ? download(blob, name, opts) : click(a, a.target = '_blank');
+        } else {
+          click(a);
+        }
+      } else {
+        // Support blobs
+        a.href = URL.createObjectURL(blob);
+        setTimeout(function () {
+          URL.revokeObjectURL(a.href);
+        }, 4E4); // 40s
+
+        setTimeout(function () {
+          click(a);
         }, 0);
-        return;
+      }
+    } // Use msSaveOrOpenBlob as a second approach
+    : 'msSaveOrOpenBlob' in navigator ? function saveAs(blob, name, opts) {
+      name = name || blob.name || 'download';
+
+      if (typeof blob === 'string') {
+        if (corsEnabled(blob)) {
+          download(blob, name, opts);
+        } else {
+          var a = document.createElement('a');
+          a.href = blob;
+          a.target = '_blank';
+          setTimeout(function () {
+            click(a);
+          });
+        }
+      } else {
+        navigator.msSaveOrOpenBlob(bom(blob, opts), name);
+      }
+    } // Fallback to using FileReader and a popup
+    : function saveAs(blob, name, opts, popup) {
+      // Open a popup immediately do go around popup blocker
+      // Mostly only avalible on user interaction and the fileReader is async so...
+      popup = popup || open('', '_blank');
+
+      if (popup) {
+        popup.document.title = popup.document.body.innerText = 'downloading...';
       }
 
-      fs_error();
-    },
-        FS_proto = FileSaver.prototype,
-        saveAs = function (blob, name, no_auto_bom) {
-      return new FileSaver(blob, name || blob.name || "download", no_auto_bom);
-    }; // IE 10+ (native saveAs)
+      if (typeof blob === 'string') return download(blob, name, opts);
+      var force = blob.type === 'application/octet-stream';
 
+      var isSafari = /constructor/i.test(_global.HTMLElement) || _global.safari;
 
-    if (typeof navigator !== "undefined" && navigator.msSaveOrOpenBlob) {
-      return function (blob, name, no_auto_bom) {
-        name = name || blob.name || "download";
+      var isChromeIOS = /CriOS\/[\d]+/.test(navigator.userAgent);
 
-        if (!no_auto_bom) {
-          blob = auto_bom(blob);
-        }
+      if ((isChromeIOS || force && isSafari) && typeof FileReader === 'object') {
+        // Safari doesn't allow downloading of blob urls
+        var reader = new FileReader();
 
-        return navigator.msSaveOrOpenBlob(blob, name);
-      };
-    } // todo: detect chrome extensions & packaged apps
-    //save_link.target = "_blank";
+        reader.onloadend = function () {
+          var url = reader.result;
+          url = isChromeIOS ? url : url.replace(/^data:[^;]*;/, 'data:attachment/file;');
+          if (popup) popup.location.href = url;else location = url;
+          popup = null; // reverse-tabnabbing #460
+        };
 
+        reader.readAsDataURL(blob);
+      } else {
+        var URL = _global.URL || _global.webkitURL;
+        var url = URL.createObjectURL(blob);
+        if (popup) popup.location = url;else location.href = url;
+        popup = null; // reverse-tabnabbing #460
 
-    FS_proto.abort = function () {};
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 4E4); // 40s
+      }
+    };
+    _global.saveAs = saveAs.saveAs = saveAs;
 
-    FS_proto.readyState = FS_proto.INIT = 0;
-    FS_proto.WRITING = 1;
-    FS_proto.DONE = 2;
-    FS_proto.error = FS_proto.onwritestart = FS_proto.onprogress = FS_proto.onwrite = FS_proto.onabort = FS_proto.onerror = FS_proto.onwriteend = null;
-    return saveAs;
-  }(typeof self !== "undefined" && self || typeof window !== "undefined" && window || undefined);
+    if (typeof module !== 'undefined') {
+      module.exports = saveAs;
+    }
+  });
 
   // (c) Dean McNamee <dean@gmail.com>, 2013.
   //
@@ -18539,11 +18598,6 @@
       if (!_hasArrayBuffer) return function _isBuffer() {
         return false;
       };
-
-      try {
-        var buffer = {};
-        if (typeof buffer.Buffer === 'function') _Buffer = buffer.Buffer;
-      } catch (error) {}
 
       return function _isBuffer(value) {
         return value instanceof ArrayBuffer || _Buffer !== null && value instanceof _Buffer;
@@ -20043,10 +20097,10 @@
 
     init();
   }
-  /*rollup-keeper-start*/
 
-  window.tmp = JPEGEncoder;
-  /*rollup-keeper-end*/
+  try {
+    module.exports = JPEGEncoder;
+  } catch (e) {} // CommonJS.
 
   /**
    * @author shaozilee
@@ -20339,6 +20393,18 @@
   BmpDecoder.prototype.getData = function () {
     return this.data;
   };
+
+  try {
+    module.exports = function (bmpData) {
+      var decoder = new BmpDecoder(bmpData);
+      return {
+        data: decoder.getData(),
+        width: decoder.width,
+        height: decoder.height
+      };
+    };
+  } catch (e) {} // CommonJS.
+
   /*rollup-keeper-start*/
 
 
@@ -22300,7 +22366,6 @@
   (function (global) {
 
     function RGBColor(color_string) {
-      color_string = color_string || '';
       this.ok = false; // strip any leading #
 
       if (color_string.charAt(0) == '#') {
@@ -22519,7 +22584,17 @@
         if (b.length == 1) b = '0' + b;
         return '#' + r + g + b;
       };
-    }
+    } // export as AMD...
+
+
+    if (typeof define !== 'undefined' && define.amd) {
+      define('RGBColor', function () {
+        return RGBColor;
+      });
+    } // ...or as browserify
+    else if (typeof module !== 'undefined' && module.exports) {
+        module.exports = RGBColor;
+      }
 
     global.RGBColor = RGBColor;
   })(typeof self !== "undefined" && self || typeof window !== "undefined" && window || typeof global !== "undefined" && global || Function('return typeof this === "object" && this.content')() || Function('return this')()); // `self` is undefined in Firefox for Android content script context
@@ -22630,11 +22705,6 @@
       /************************************************************************/
       TTFFont.open = function (filename, name, vfs, encoding) {
         var contents;
-
-        if (typeof vfs !== "string") {
-          throw new Error('Invalid argument supplied in TTFFont.open');
-        }
-
         contents = b64ToByteArray(vfs);
         return new TTFFont(contents, name, encoding);
       };
@@ -25656,9 +25726,18 @@
   window.tmp = FlateStream;
   /*rollup-keeper-end*/
 
-}));
+  exports.default = jsPDF;
+  var _default2 = exports.default;
+  function rewire($stub) {
+    exports.default = $stub;
+  }
+  function restore() {
+    exports.default = _default2;
+  }
 
-try {
-module.exports = jsPDF;
-}
-catch (e) {}
+  exports.rewire = rewire;
+  exports.restore = restore;
+
+  Object.defineProperty(exports, '__esModule', { value: true });
+
+}));
