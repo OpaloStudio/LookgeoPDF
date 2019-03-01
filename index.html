@@ -2,6 +2,7 @@
 <html>
 
 <head>
+    <meta charset="UTF-8">
     <title>Lookgeo PDF</title>
     <link rel="stylesheet" href="vistas/css/app.css">
     <script src="vistas/js/jquery-3.3.1.min.js"></script>
@@ -17,36 +18,50 @@
         <div class="seccion1">
             <span class="flexy1">
                 
-                <h1>¡Hola!</h1>
-                <p>Antes de ver la presentación invitamos a leer nuestro aviso de provacidad</p>
-                <img class="guapi" src="buapo.png">
+                <h1 class="blanco">¡Hola!</h1>
+                <p class="blanco">Antes de ver la presentación invitamos a leer nuestro aviso de provacidad</p>
+                <img class="guapi" src="vistas/img/dodo-bienvenido.svg">
+                
             </span>
+            <img class="logoDer" src="vistas/img/logo3.png">
+           
         </div>
         
         <div class="seccion2">
             <span class="flexy">
                     <span class="zonaInfo">
-                            <h1 class="testito">Depto en Renta</h1><br><br><br>
+                            <h1 class="testito">Depto en Renta</h1>
+                            <span class="box">
+                                    <span class="boxi">Recámaras</span>
+                                    <span class="boxi">Baños</span>
+                                    <span class="boxi">Superficie</span>
+                                    <span class="boxi">Construcción</span>
+                                </span>
                             <p class="testito1">Promotor:</p>
                             <p class="testito1">Teléfono:</p>
                             <p class="testito1">Correo:</p>
                     </span>
                     <span class="zonaImg">
-                            <img class="guape" src="buapo.png">
+                            <img class="guape" src="vistas/img/depa.jpg">
                     </span>
             </span>
         </div>
         
         <div class="seccion3">
-            <span class="zonaInfo">
+            <span class="zonaInfo2">
                     <h1 class="testito">Descripción</h1><br><br><br>
-                    <p class="testito1">Lorem ipsum dolor sit amet consectetur adipisicing elit. Modi recusandae inventore a qui<br>
+                    <p class="negro">Lorem ipsum dolor sit amet consectetur adipisicing elit. Modi recusandae inventore a qui<br>
                         totam reprehenderit voluptatem vero in voluptate ipsa laudantium, sint distinctio dignissimos quam autem<br>
                         itaque animi quis maxime.</p>
             </span>
-            <span class="zonaImg">
-                    <img class="guape" src="buapo.png">
+            <span class="zonaImg2">
+                    <img class="guape" src="vistas/img/depa.jpg">
             </span>
+    </div>
+
+    <div class="seccion4">
+        <span id="map"></span>
+          
     </div>
     </div>
 
@@ -100,10 +115,23 @@
                 pdf.addPage(PDF_Width, PDF_Height);
                 pdf.addImage(imgData, 'JPG', top_left_margin, top_left_margin, HTML_Width, HTML_Height);
 
-                pdf.save("HTML-Document.pdf");
+                pdf.save("Lookgeo.pdf");
             });
+
+            
         };
     </script>
+    <script>
+            var map;
+            function initMap() {
+              map = new google.maps.Map(document.getElementById('map'), {
+                center: {lat: -34.397, lng: 150.644},
+                zoom: 8
+              });
+            }
+          </script>
+          <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCVFijUYyO5PDO2P_TP4Csq_bRn8iDK0sI&callback=initMap"
+          async defer></script>
 </body>
 
 </html>
