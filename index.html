@@ -1,90 +1,109 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>PDF</title>
-        <script src="vistas/js/jspdf.debug.js"></script>
-        <script src="vistas/js/html2canvas.js"></script>
-        <script src="vistas/js/jquery-3.3.1.min.js"></script>
 
-        <style>
-            .imagen{
-                width: 500px;
-            }
-            .titulo{
-                width: 500px;
-            }
-            .testDiv{
-                width: 500px;
-            }
-        </style>
-        
-    </head>    
-    <body>
-        <h1 class="titulo">PRUEBA DE HTML A PDF</h1>
-        <div class="testDiv page1">
-            <h1>Encabezado Ejemplo</h1>
-            <input type="text"/>
-            <input type="submit" value="button"/>
-            <br><br>
-            <img src="buapo.png" class="imagen" width="100" height="100"/>
+<head>
+    <title>Lookgeo PDF</title>
+    <link rel="stylesheet" href="vistas/css/app.css">
+    <script src="vistas/js/jquery-3.3.1.min.js"></script>
+    <script src="vistas/js/jspdf.debug.js"></script>
+    <script src="vistas/js/html2canvas.js"></script>
+
+
+
+</head>
+
+<body>
+    <div class="contenedor">
+        <div class="seccion1">
+            <span class="flexy1">
+                
+                <h1>¡Hola!</h1>
+                <p>Antes de ver la presentación invitamos a leer nuestro aviso de provacidad</p>
+                <img class="guapi" src="buapo.png">
+            </span>
         </div>
-        <div class="testDiv page2">
-                <h1>Encabezado Ejemplo</h1>
-                <input type="text"/>
-                <input type="submit" value="button"/>
-                <br><br>
-                <img src="buapo.png" class="imagen" width="100" height="100"/>
-            </div>
-            <div class="testDiv page3">
-                    <h1>Encabezado Ejemplo</h1>
-                    <input type="text"/>
-                    <input type="submit" value="button"/>
-                    <br><br>
-                    <img src="buapo.png" class="imagen" width="100" height="100"/>
-                </div>
-        <a href="#" onclick="generarPDF()" id="boton">DESCARGAR PDF</a>
-        <script>
-            var pdf,page_section,HTML_Width,HTML_Height,
-                top_left_margin,PDF_Width,PDF_Height,canvas_image_width,canvas_image_height;
+        
+        <div class="seccion2">
+            <span class="flexy">
+                    <span class="zonaInfo">
+                            <h1 class="testito">Depto en Renta</h1><br><br><br>
+                            <p class="testito1">Promotor:</p>
+                            <p class="testito1">Teléfono:</p>
+                            <p class="testito1">Correo:</p>
+                    </span>
+                    <span class="zonaImg">
+                            <img class="guape" src="buapo.png">
+                    </span>
+            </span>
+        </div>
+        
+        <div class="seccion3">
+            <span class="zonaInfo">
+                    <h1 class="testito">Descripción</h1><br><br><br>
+                    <p class="testito1">Lorem ipsum dolor sit amet consectetur adipisicing elit. Modi recusandae inventore a qui<br>
+                        totam reprehenderit voluptatem vero in voluptate ipsa laudantium, sint distinctio dignissimos quam autem<br>
+                        itaque animi quis maxime.</p>
+            </span>
+            <span class="zonaImg">
+                    <img class="guape" src="buapo.png">
+            </span>
+    </div>
+    </div>
 
-            function calculatePDF_height_width(selector,index){
-                page_section = $(selector).eq(index);
-                HTML_Width = page_section.width();
-                HTML_Height = page_section.height();
-                top_left_margin = 15;
-                PDF_Width = HTML_Width + (top_left_margin * 2);
-                PDF_Height = (PDF_Width * 1.2) + (top_left_margin * 2);
-                canvas_image_width = HTML_Width;
-                canvas_image_height = HTML_Height;
-            }
 
-            function generarPDF(){
-                pdf="";
-                html2canvas($(".testDiv:eq(1)")[0], { allowTaint: true }).then(function(canvas) {
 
-                    calculatePDF_height_width(".testDiv",0);
-                    var imgData = canvas.toDataURL("image/png", 1.0);
-                    pdf = new jsPDF('p', 'pt', [PDF_Width, PDF_Height]);
-                    pdf.addImage(imgData, 'JPG', top_left_margin, top_left_margin, HTML_Width, HTML_Height);
-                });
-                html2canvas($(".testDiv:eq(1)")[0], { allowTaint: true }).then(function(canvas) {
 
-                    calculatePDF_height_width(".testDiv",1);
-                    var imgData = canvas.toDataURL("image/png", 1.0);
-                    pdf.addPage(PDF_Width, PDF_Height);
-                    pdf.addImage(imgData, 'JPG', top_left_margin, top_left_margin, HTML_Width, HTML_Height);
-                });
-                html2canvas($(".testDiv:eq(1)")[0], { allowTaint: true }).then(function(canvas) {
 
-                    calculatePDF_height_width(".testDiv",2);
-                    var imgData = canvas.toDataURL("image/png", 1.0);
-                    pdf.addPage(PDF_Width, PDF_Height);
-                    pdf.addImage(imgData, 'JPG', top_left_margin, top_left_margin, HTML_Width, HTML_Height);
+    <a href="#" onclick="generarPDF()" id="boton">DESCARGAR PDF</a>
 
-                    pdf.save("HTML-Document.pdf");
-                });
-            };
-        </script>
+    <script>
+        var pdf, page_section, HTML_Width, HTML_Height,
+            top_left_margin, PDF_Width, PDF_Height, canvas_image_width, canvas_image_height;
 
-    </body>
+        function calculatePDF_height_width(selector, index) {
+            page_section = $(selector).eq(index);
+            HTML_Width = 2000//page_section.width();
+            HTML_Height = 1000//page_section.height();
+            top_left_margin = 15;
+            PDF_Width = HTML_Width + (top_left_margin * 2);
+            PDF_Height = (PDF_Width / 2) + (top_left_margin * 2);
+            canvas_image_width = HTML_Width;
+            canvas_image_height = HTML_Height;
+        }
+
+        function generarPDF() {
+            pdf = "";
+            html2canvas($(".seccion1")[0], {
+                allowTaint: true
+            }).then(function (canvas) {
+                calculatePDF_height_width(".seccion1", 0);
+                var imgData = canvas.toDataURL("image/png", 1.0);
+                pdf = new jsPDF('p', 'pt', [PDF_Width, PDF_Height]);
+                pdf.addImage(imgData, 'JPG', top_left_margin, 1000, HTML_Width, HTML_Height);
+            });
+
+            html2canvas($(".seccion2")[0], {
+                allowTaint: true
+            }).then(function (canvas) {
+                calculatePDF_height_width(".seccion2", 1);
+                var imgData = canvas.toDataURL("image/png", 1.0);
+                pdf.addPage(PDF_Width, PDF_Height);
+                pdf.addImage(imgData, 'JPG', top_left_margin, top_left_margin, HTML_Width, HTML_Height);
+            });
+
+
+            html2canvas($(".seccion3")[0], {
+                allowTaint: true
+            }).then(function (canvas) {
+                calculatePDF_height_width(".seccion3", 2);
+                var imgData = canvas.toDataURL("image/png", 1.0);
+                pdf.addPage(PDF_Width, PDF_Height);
+                pdf.addImage(imgData, 'JPG', top_left_margin, top_left_margin, HTML_Width, HTML_Height);
+
+                pdf.save("HTML-Document.pdf");
+            });
+        };
+    </script>
+</body>
+
 </html>
